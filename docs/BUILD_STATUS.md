@@ -4,16 +4,16 @@ Last updated: 9 September 2026
 
 ## Verification completed
 
-- `python -m pytest`: **10 passed**. One third-party Starlette/AnyIO deprecation warning; no test failures.
+- `python -m pytest`: **12 passed**. One third-party Starlette/AnyIO deprecation warning; no test failures.
 - Python compile check passed for application, worker, scripts, and tests.
-- Rendered teacher console verified with the deterministic source.
+- Rendered teacher console verified with the deterministic source, including draggable board-corner handles and calibration save feedback.
 - Rendered student flow verified: checkpoint, version advancement, localized stale overlay, historical version view, and return-to-live resync.
 - Fixture benchmark smoke run produced `manifest.json` and `metrics.csv`; its figures are intentionally excluded from product claims.
 
 ## Implemented
 
 - FastAPI local service with camera/file capture and a clearly labeled deterministic demo source.
-- Four-point board calibration and perspective rectification.
+- Four-point board calibration and perspective rectification with draggable camera-preview handles.
 - Strict QNN/HTP inference configuration with CPU fallback disabled.
 - Native ARM64 inference worker and framed binary IPC for a separate Windows host process.
 - Conservative pixel state with unknown/stale tracking, occlusion hold, stable change confirmation, and longer erasure confirmation.

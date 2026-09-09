@@ -56,6 +56,7 @@ class Runtime:
     frames: int = 0
     dropped: int = 0
     bytes_sent: int = 0
+    state_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     started_ms: int = field(default_factory=lambda: int(time.time() * 1000))
     run_id: str = field(default_factory=lambda: time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8])
 
@@ -168,44 +169,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 mask = cal.rectify(source_mask, mask=True) > 0
                 runtime.latest_rectified = rectified
                 runtime.latest_mask = mask.astype(np.uint8) * 255
-                initialized = runtime.state is None or runtime.state.image.shape != rectified.shape
-                if initialized:
-                    runtime.state = BoardState(rectified.shape[:2])
-                    runtime.epoch = str(uuid.uuid4())
-                commit = runtime.state.observe(rectified, mask)
-                runtime.frames += 1
-                if initialized:
-                    payload = checkpoint_payload(runtime.state.image, runtime.state.valid, runtime.state.stale)
-                    runtime.history.append({"version": 0, "kind": "checkpoint",
-                                            "created_ms": int(time.time() * 1000), "image": payload["image"]})
-                    publish({"type": "checkpoint", "protocol": 1, "session_id": runtime.session_id,
-                             "epoch": runtime.epoch, "version": 0, "width": runtime.state.image.shape[1],
-                             "height": runtime.state.image.shape[0], **payload})
-                    save_board_snapshot(snapshot_path, runtime.state,
-                                        {"session_id": runtime.session_id, "epoch": runtime.epoch,
-                                         "calibration_id": cal.calibration_id})
-                elif commit:
-                    tiles = [tile.json() for tile in encode_tiles(commit.image, commit.changed_mask, settings.tile_size)]
-                    message = {"type": "patch", "protocol": 1, "session_id": runtime.session_id,
-                               "epoch": runtime.epoch, "base_version": commit.version - 1,
-                               "version": commit.version, "kind": commit.kind.value,
-                               "capture_ms": timestamp, "committed_ms": int(time.time() * 1000),
-                               "width": commit.image.shape[1], "height": commit.image.shape[0],
-                               "tiles": tiles, "stale_mask": encode_stale_overlay(commit.stale_mask)}
-                    store.append(runtime.session_id, runtime.epoch, commit.version, commit.kind.value, message)
-                    telemetry.emit("board_commit", epoch=runtime.epoch, version=commit.version,
-                                   kind=commit.kind.value, tile_count=len(tiles), payload_bytes=len(json.dumps(message)))
-                    runtime.history.append({"version": commit.version, "kind": commit.kind.value,
-                                            "created_ms": message["committed_ms"], "image": checkpoint_payload(
-                                                commit.image, commit.valid_mask, commit.stale_mask)["image"]})
-                    save_board_snapshot(snapshot_path, runtime.state,
-                                        {"session_id": runtime.session_id, "epoch": runtime.epoch,
-                                         "calibration_id": cal.calibration_id})
-                    publish(message)
-                elif runtime.frames % max(1, int(settings.fps)) == 0 and runtime.state:
-                    publish({"type": "freshness", "epoch": runtime.epoch,
-                             "version": runtime.state.version, "stale_mask": encode_stale_overlay(runtime.state.stale),
-                             "committed_ms": int(time.time() * 1000)})
+                with runtime.state_lock:
+                    initialized = runtime.state is None or runtime.state.image.shape != rectified.shape
+                    if initialized:
+                        runtime.state = BoardState(rectified.shape[:2])
+                        runtime.epoch = str(uuid.uuid4())
+                    state = runtime.state
+                    commit = state.observe(rectified, mask)
+                    runtime.frames += 1
+                    if initialized:
+                        payload = checkpoint_payload(state.image, state.valid, state.stale)
+                        runtime.history.append({"version": 0, "kind": "checkpoint",
+                                                "created_ms": int(time.time() * 1000), "image": payload["image"]})
+                        publish({"type": "checkpoint", "protocol": 1, "session_id": runtime.session_id,
+                                 "epoch": runtime.epoch, "version": 0, "width": state.image.shape[1],
+                                 "height": state.image.shape[0], **payload})
+                        save_board_snapshot(snapshot_path, state,
+                                            {"session_id": runtime.session_id, "epoch": runtime.epoch,
+                                             "calibration_id": cal.calibration_id})
+                    elif commit:
+                        tiles = [tile.json() for tile in encode_tiles(commit.image, commit.changed_mask,
+                                                                      settings.tile_size)]
+                        message = {"type": "patch", "protocol": 1, "session_id": runtime.session_id,
+                                   "epoch": runtime.epoch, "base_version": commit.version - 1,
+                                   "version": commit.version, "kind": commit.kind.value,
+                                   "capture_ms": timestamp, "committed_ms": int(time.time() * 1000),
+                                   "width": commit.image.shape[1], "height": commit.image.shape[0],
+                                   "tiles": tiles, "stale_mask": encode_stale_overlay(commit.stale_mask)}
+                        store.append(runtime.session_id, runtime.epoch, commit.version, commit.kind.value, message)
+                        telemetry.emit("board_commit", epoch=runtime.epoch, version=commit.version,
+                                       kind=commit.kind.value, tile_count=len(tiles),
+                                       payload_bytes=len(json.dumps(message)))
+                        runtime.history.append({"version": commit.version, "kind": commit.kind.value,
+                                                "created_ms": message["committed_ms"], "image": checkpoint_payload(
+                                                    commit.image, commit.valid_mask, commit.stale_mask)["image"]})
+                        save_board_snapshot(snapshot_path, state,
+                                            {"session_id": runtime.session_id, "epoch": runtime.epoch,
+                                             "calibration_id": cal.calibration_id})
+                        publish(message)
+                    elif runtime.frames % max(1, int(settings.fps)) == 0:
+                        publish({"type": "freshness", "epoch": runtime.epoch,
+                                 "version": state.version, "stale_mask": encode_stale_overlay(state.stale),
+                                 "committed_ms": int(time.time() * 1000)})
                 tick += 1
         except Exception as exc:
             runtime.error = str(exc)
@@ -252,11 +257,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                      settings.board_width, request.points)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        runtime.calibration = cal
-        runtime.state = None
-        runtime.history.clear()
-        runtime.epoch = str(uuid.uuid4())
-        cal.save(settings.calibration_path)
+        with runtime.state_lock:
+            runtime.calibration = cal
+            runtime.state = None
+            runtime.history.clear()
+            runtime.epoch = str(uuid.uuid4())
+            cal.save(settings.calibration_path)
         return {"calibration_id": cal.calibration_id, "width": cal.output_width, "height": cal.output_height}
 
     @app.post("/api/control/{action}")
@@ -266,9 +272,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if action == "pause": runtime.paused = True
         elif action == "start": runtime.paused = False
         elif action == "reset":
-            runtime.state = None
-            runtime.history.clear()
-            runtime.epoch = str(uuid.uuid4())
+            with runtime.state_lock:
+                runtime.state = None
+                runtime.history.clear()
+                runtime.epoch = str(uuid.uuid4())
         else: raise HTTPException(400, "Unknown action")
         return runtime.status()
 
