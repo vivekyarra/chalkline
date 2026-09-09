@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chalkline"
+version = "0.1.0"
+description = "Bandwidth-efficient physical chalkboard streaming for Snapdragon PCs"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn[standard]==0.34.2",
+  "numpy==1.26.4",
+  "opencv-python-headless==4.11.0.86",
+  "pydantic==2.11.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest==8.3.5", "httpx==0.28.1"]
+cpu = ["onnxruntime==1.21.1"]
+
+[project.scripts]
+chalkline = "chalkline.main:run"
+
+[tool.setuptools]
+package-dir = {"" = "app"}
+
+[tool.setuptools.packages.find]
+where = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

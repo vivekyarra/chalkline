@@ -1,0 +1,26 @@
+:root { color-scheme: dark; font-family: Inter, Segoe UI, sans-serif; background:#07110e; color:#eff8ee; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#17362b 0,#07110e 55%); }
+header { padding:20px 28px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #26463b; }
+.brand { letter-spacing:.14em; font-weight:850; color:#eff4d8; }
+.tag { color:#a9c5b4; font-size:13px; }
+main { width:min(1180px,calc(100% - 32px)); margin:24px auto 60px; }
+.panel { background:#101d19ee; border:1px solid #2a473d; border-radius:16px; padding:18px; box-shadow:0 18px 50px #0005; }
+.board-wrap { position:relative; background:#1b2c24; border:10px solid #6f5638; border-radius:6px; overflow:hidden; min-height:320px; }
+canvas,.preview { display:block; width:100%; height:auto; background:#1d3027; }
+#stale { position:absolute; inset:0; pointer-events:none; opacity:.33; background:transparent; }
+.row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.grid { display:grid; grid-template-columns:2fr 1fr; gap:18px; }
+.metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:16px 0; }
+.metric { padding:12px; border-radius:10px; background:#172b24; color:#aac9b9; }
+.metric strong { display:block; color:#f4f6dc; font-size:20px; }
+button { background:#d8f078; color:#15200d; border:0; padding:10px 15px; border-radius:9px; font-weight:750; cursor:pointer; }
+button.secondary { background:#23453a; color:#e8f4ec; }
+.status { padding:6px 10px; border-radius:999px; background:#264c3d; font-size:12px; font-weight:750; }
+.status.off { background:#64332d; }
+input[type=range] { width:100%; }
+.history { margin-top:16px; }
+.hint,.muted { color:#9cb5a8; font-size:13px; }
+.views { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.views img { width:100%; min-height:150px; object-fit:contain; background:#050807; border-radius:8px; }
+@media(max-width:800px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}

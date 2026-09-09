@@ -1,0 +1,13 @@
+.venv/
+.venv-arm64/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+data/models/*
+!data/models/.gitkeep
+data/chalkline.db*
+data/checkpoints/
+evidence/*
+!evidence/.gitkeep
+web/node_modules/

@@ -1,0 +1,10 @@
+{
+  "rates_kbps": [64, 128, 256],
+  "rate_unit": "decimal kilobits per second",
+  "added_one_way_delay_ms": 100,
+  "random_packet_loss_percent": 1,
+  "outage_start_seconds": 240,
+  "outage_duration_seconds": 10,
+  "seeds": [4101, 4102, 4103],
+  "methods": ["chalkline", "low-frame-rate-video", "periodic-snapshots"]
+}
