@@ -8,4 +8,4 @@ Checkpoint messages carry the full lossless board image, valid-pixel mask, stale
 
 The board image and stale overlay are separate. Occluded pixels retain their last verified image value. Never-observed pixels stay invalid. The receiver preserves its last board during disconnect and enters `DISCONNECTED`, then `SYNCING`, then `LIVE` after a valid checkpoint.
 
-Current MVP limitation: event metadata is durable in SQLite, while full historical image snapshots are retained in memory for the active lesson. Durable image checkpoints and contiguous delta replay remain a release gate.
+Event metadata is durable in SQLite. The latest board image, validity mask, stale mask, version, session, and epoch are saved through an atomic compressed checkpoint and recovered after a process restart when calibration matches. Full historical image snapshots remain in memory for the active lesson; durable navigation through every historical version and contiguous delta replay across a restart remain a release gate.

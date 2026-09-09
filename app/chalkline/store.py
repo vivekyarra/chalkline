@@ -1,11 +1,39 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import sqlite3
 import threading
 import time
 from typing import Any
+
+import numpy as np
+
+from .board_state import BoardState
+
+
+def save_board_snapshot(path: Path, state: BoardState, metadata: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    encoded_metadata = np.frombuffer(json.dumps(metadata, separators=(",", ":")).encode("utf-8"), dtype=np.uint8)
+    with temporary.open("wb") as stream:
+        np.savez_compressed(stream, image=state.image, valid=state.valid, stale=state.stale,
+                            version=np.asarray([state.version], dtype=np.int64), metadata=encoded_metadata)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, path)
+
+
+def load_board_snapshot(path: Path) -> tuple[BoardState, dict[str, Any]]:
+    with np.load(path, allow_pickle=False) as snapshot:
+        required = {"image", "valid", "stale", "version", "metadata"}
+        if not required.issubset(snapshot.files):
+            raise ValueError("Incomplete board snapshot")
+        metadata = json.loads(snapshot["metadata"].astype(np.uint8).tobytes().decode("utf-8"))
+        state = BoardState.restore(snapshot["image"], snapshot["valid"], snapshot["stale"],
+                                   int(snapshot["version"][0]))
+    return state, metadata
 
 
 class EventStore:

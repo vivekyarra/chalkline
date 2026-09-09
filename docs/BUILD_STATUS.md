@@ -21,6 +21,7 @@ Last updated: 9 September 2026
 - Teacher console, student canvas, stale overlay, history control, reconnection, and LAN WebRTC audio signaling.
 - Application-payload comparison harness and constrained-network profile.
 - Per-run evidence manifests and structured JSONL events under `evidence/<run-id>/`.
+- Atomic latest-board checkpoint and process-restart recovery when calibration matches.
 - Focused automated tests for calibration, board-state invariants, patch fidelity, persistence, HTTP pages, and WebSocket checkpoint delivery.
 
 ## Required evidence gates

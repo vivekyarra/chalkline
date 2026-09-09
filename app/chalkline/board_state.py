@@ -41,6 +41,20 @@ class BoardState:
         self._candidate_count = np.zeros((h, w), dtype=np.uint8)
         self._occlusion_hold = np.zeros((h, w), dtype=np.uint8)
 
+    @classmethod
+    def restore(cls, image: np.ndarray, valid: np.ndarray, stale: np.ndarray, version: int,
+                **settings: int) -> "BoardState":
+        if image.ndim != 3 or image.shape[2] != 3 or valid.shape != image.shape[:2] or stale.shape != image.shape[:2]:
+            raise ValueError("Invalid board snapshot dimensions")
+        if image.shape[0] > 4320 or image.shape[1] > 7680 or image.size == 0:
+            raise ValueError("Board snapshot exceeds limits")
+        state = cls(image.shape[:2], **settings)
+        state.image = np.ascontiguousarray(image, dtype=np.uint8)
+        state.valid = np.ascontiguousarray(valid, dtype=bool)
+        state.stale = np.ascontiguousarray(stale, dtype=bool)
+        state.version = max(0, int(version))
+        return state
+
     @staticmethod
     def _chalk_score(image: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

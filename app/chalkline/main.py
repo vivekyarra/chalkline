@@ -25,7 +25,7 @@ from .config import ROOT, Settings
 from .patches import checkpoint_payload, encode_stale_overlay, encode_tiles
 from .segmentation import Segmenter
 from .segmentation_client import SegmentationWorker
-from .store import EventStore
+from .store import EventStore, load_board_snapshot, save_board_snapshot
 from .telemetry import Telemetry
 
 
@@ -97,6 +97,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             runtime.calibration = Calibration.load(settings.calibration_path)
         except Exception:
             runtime.calibration = None
+    snapshot_path = settings.checkpoint_dir / "latest.npz"
+    if runtime.calibration and snapshot_path.exists():
+        try:
+            recovered_state, recovered = load_board_snapshot(snapshot_path)
+            if recovered.get("calibration_id") == runtime.calibration.calibration_id:
+                runtime.state = recovered_state
+                runtime.session_id = str(recovered["session_id"])
+                runtime.epoch = str(recovered["epoch"])
+                recovered_payload = checkpoint_payload(recovered_state.image, recovered_state.valid, recovered_state.stale)
+                runtime.history.append({"version": recovered_state.version, "kind": "recovered-checkpoint",
+                                        "created_ms": int(time.time() * 1000), "image": recovered_payload["image"]})
+        except Exception:
+            runtime.state = None
     store = EventStore(settings.database_path)
     stop_event = threading.Event()
     loop_holder: dict[str, asyncio.AbstractEventLoop] = {}
@@ -168,6 +181,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     publish({"type": "checkpoint", "protocol": 1, "session_id": runtime.session_id,
                              "epoch": runtime.epoch, "version": 0, "width": runtime.state.image.shape[1],
                              "height": runtime.state.image.shape[0], **payload})
+                    save_board_snapshot(snapshot_path, runtime.state,
+                                        {"session_id": runtime.session_id, "epoch": runtime.epoch,
+                                         "calibration_id": cal.calibration_id})
                 elif commit:
                     tiles = [tile.json() for tile in encode_tiles(commit.image, commit.changed_mask, settings.tile_size)]
                     message = {"type": "patch", "protocol": 1, "session_id": runtime.session_id,
@@ -182,6 +198,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     runtime.history.append({"version": commit.version, "kind": commit.kind.value,
                                             "created_ms": message["committed_ms"], "image": checkpoint_payload(
                                                 commit.image, commit.valid_mask, commit.stale_mask)["image"]})
+                    save_board_snapshot(snapshot_path, runtime.state,
+                                        {"session_id": runtime.session_id, "epoch": runtime.epoch,
+                                         "calibration_id": cal.calibration_id})
                     publish(message)
                 elif runtime.frames % max(1, int(settings.fps)) == 0 and runtime.state:
                     publish({"type": "freshness", "epoch": runtime.epoch,
